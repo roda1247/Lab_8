@@ -3,9 +3,19 @@ modular code.
 
 ```{r}
 #| label: setup
-
-
+library(tidyverse)
+library(dplyr)
+library(purrr)
+library(tibble)
+library(ggplot2)
+library(patchwork)
 ```
+
+```{r}
+#| label: read-data
+fish <- read_csv("data/BlackfootFish.csv")
+```
+
 
 ## The Data
 
@@ -37,15 +47,33 @@ measurement errors.
 ```{r}
 #| label: find-missing-values
 
+fish |> 
+  rowwise() |> 
+  mutate(has_na = any(across(everything(), is.na))) |> 
+  ungroup() |> 
+  summarise(n_missing_rows = sum(has_na))
+
+fish |> 
+  summarise(across(everything(), ~ any(is.na(.)))) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "has_missing") %>%
+  filter(has_missing)
 ```
 
-
+> 1796 observations have missing values.  
+> The variable with missing values is weight.  
 
 **1b. Using `map_int()`, produce a nicely formatted table of the number of missing values for each variable in the `fish` data that displays the same information as 1a** 
 
 ```{r}
 #| label: map-missing-values-of-fish
 
+missing_table <- tibble(
+  variable = names(fish),
+  n_missing = map_int(fish, ~ sum(is.na(.)))
+) %>%
+  filter(n_missing > 0)
+
+print(missing_table)
 
 ```
 
@@ -55,6 +83,21 @@ measurement errors.
 ```{r}
 #| label: visual-of-missing-values-over-time
 
+missing_summary <- fish |> 
+  mutate(is_missing = is.na(weight)) |> 
+  group_by(year, section, trip) |> 
+  summarise(n_missing = sum(is_missing), .groups = "drop")
+
+ggplot(missing_summary, aes(x = factor(trip), y = factor(section), fill = n_missing)) +
+  geom_tile(color = "white") +
+  facet_wrap(~ year) +
+  scale_fill_gradient(name = "Missing Values", low = "white", high = "red") +
+  labs(
+    title = "Missing Data Heatmap by Year, Section, and Trip",
+    x = "Trip",
+    y = "Section"
+  ) +
+  theme_minimal()
 ```
 
 ## Rescaling the Data
@@ -76,17 +119,19 @@ I might write the following `R` code to carry out the rescaling procedure for th
 #| eval: false
 
 fish <- fish |> 
-  mutate(length = (length - min(length, na.rm = TRUE)) / 
-           (max(length, na.rm = TRUE) - min(length, na.rm = TRUE)), 
-         weight = (weight - min(weight, na.rm = TRUE)) / 
-           (max(weight, na.rm = TRUE) - min(length, na.rm = TRUE)))
+  mutate(
+    length = (length - min(length, na.rm = TRUE)) / 
+             (max(length, na.rm = TRUE) - min(length, na.rm = TRUE)),
+    
+    weight = (weight - min(weight, na.rm = TRUE)) / 
+             (max(weight, na.rm = TRUE) - min(weight, na.rm = TRUE)))
 ```
 
 This process of duplicating an action multiple times can make it difficult to
 understand the intent of the process. *Additionally, it can make it very difficult to spot mistakes.*
 
 **3. What is the mistake I made in the above rescaling code?**
-
+> Used the wrong variable for the bottom part of the code. Initially put length when it should have been weight.  
 
 When you find yourself copy-pasting lines of code, it's time to write a
 function, instead!
@@ -98,7 +143,24 @@ function, instead!
 
 ```{r}
 #| label: write-rescale-function
+rescale_01 <- function(x) {
+  (x - min(x, na.rm = TRUE)) / 
+    (max(x, na.rm = TRUE) - min(x, na.rm = TRUE))
+   if (!is.numeric(x)) {
+    stop("Input must be numeric.")
+  }
+  
+  if (length(x[!is.na(x)]) <= 1) {
+    stop("Input must contain more than one non-NA value.")
+  }
+  
+  rng <- range(x, na.rm = TRUE)
+  (x - rng[1]) / (rng[2] - rng[1])
+}
 
+ fish |>
+  mutate(length = rescale_01(length),
+         weight = rescale_01(weight))
 ```
 
 ::: callout-tip
@@ -154,7 +216,26 @@ fish |>
   scale_y_continuous(limits = c(0,4000))
 
 # Code for Q7 plot.
+fish_scaled <- fish |> 
+  mutate(length_scaled = rescale_01(length))
 
+
+p1 <- fish_scaled |>  
+  ggplot(aes(x = length)) + 
+  geom_histogram(binwidth = 45, fill = "blue") +
+  labs(x = "Original Fish Length (mm)", y = "Count") +
+  scale_y_continuous(limits = c(0, 4000)) +
+  theme_minimal()
+
+
+p2 <- fish_scaled |>  
+  ggplot(aes(x = length_scaled)) + 
+  geom_histogram(binwidth = 0.05, fill = "red") +
+  labs(x = "Rescaled Fish Length [0,1]", y = "Count") +
+  scale_y_continuous(limits = c(0, 4000)) +
+  theme_minimal()
+
+p1 + p2
 ```
 
 ::: callout-tip
