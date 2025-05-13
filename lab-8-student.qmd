@@ -3,7 +3,7 @@ title: "Lab 8: Fish and Functions"
 author: "Bianca Rodas"
 format: html
 execute:
-  echo: TRUE
+  echo: true
   warning: false
 embed-resources: true
  
