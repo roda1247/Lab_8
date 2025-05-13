@@ -1,8 +1,22 @@
+---
+title: "Lab 8: Fish and Functions"
+author: "Bianca Rodas"
+format: html
+execute:
+  echo: TRUE
+  warning: false
+embed-resources: true
+ 
+---
+
+
+
 The goal of this lab is learn more about exploring missing data and writing
 modular code.
 
 ```{r}
 #| label: setup
+#| include: FALSE
 library(tidyverse)
 library(dplyr)
 library(purrr)
@@ -13,7 +27,7 @@ library(patchwork)
 
 ```{r}
 #| label: read-data
-fish <- read_csv("data/BlackfootFish.csv")
+fish <- read_csv("data/BlackfootFish.csv", show_col_types = FALSE )
 ```
 
 
